@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use crate::file_panel::FilePanel;
 use crate::filesystem::LocalFileSystem;
 use crate::ssh::{RemoteFileSystem, SshConnection};
+use crate::transfer;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActivePanel {
@@ -30,8 +31,9 @@ impl App {
         // If SSH connection provided, use remote filesystem for right panel
         let right_panel = if let Some(ref ssh_conn) = ssh_connection {
             let remote_fs = RemoteFileSystem::new(ssh_conn);
+            let sftp_handle = remote_fs.sftp_handle();
             let remote_home = ssh_conn.home_dir.clone();
-            FilePanel::new(remote_fs, remote_home)?
+            FilePanel::new_remote(remote_fs, remote_home, sftp_handle)?
         } else {
             FilePanel::new(LocalFileSystem::new(), home)?
         };
@@ -151,22 +153,181 @@ impl App {
     }
 
     pub fn copy_file(&mut self) -> Result<()> {
-        self.status_message = Some("Copy: Not yet implemented".to_string());
+        // Get source entry from active panel
+        let source_entry = match self.active_panel().selected_entry() {
+            Some(entry) => entry.clone(),
+            None => {
+                self.status_message = Some("No file selected".to_string());
+                return Ok(());
+            }
+        };
+
+        // Skip ".." entry
+        if source_entry.name == ".." {
+            self.status_message = Some("Cannot copy parent directory reference".to_string());
+            return Ok(());
+        }
+
+        // Directories not yet supported
+        if source_entry.is_dir {
+            self.status_message = Some("Directory copy not yet implemented".to_string());
+            return Ok(());
+        }
+
+        // Get destination path (inactive panel's current directory + filename)
+        let dest_path = self.inactive_panel().current_path.join(&source_entry.name);
+
+        // Perform copy based on active panel
+        let result = match self.active_panel {
+            ActivePanel::Left => {
+                transfer::copy_file(&self.left_panel, &self.right_panel, &source_entry.path, &dest_path)
+            }
+            ActivePanel::Right => {
+                transfer::copy_file(&self.right_panel, &self.left_panel, &source_entry.path, &dest_path)
+            }
+        };
+
+        match result {
+            Ok(bytes) => {
+                self.status_message = Some(format!(
+                    "Copied {} ({} bytes)",
+                    source_entry.name,
+                    bytes
+                ));
+                // Refresh destination panel
+                match self.active_panel {
+                    ActivePanel::Left => self.right_panel.refresh()?,
+                    ActivePanel::Right => self.left_panel.refresh()?,
+                }
+            }
+            Err(e) => {
+                self.status_message = Some(format!("Copy failed: {}", e));
+            }
+        }
+
         Ok(())
     }
 
     pub fn move_file(&mut self) -> Result<()> {
-        self.status_message = Some("Move: Not yet implemented".to_string());
+        // Get source entry from active panel
+        let source_entry = match self.active_panel().selected_entry() {
+            Some(entry) => entry.clone(),
+            None => {
+                self.status_message = Some("No file selected".to_string());
+                return Ok(());
+            }
+        };
+
+        // Skip ".." entry
+        if source_entry.name == ".." {
+            self.status_message = Some("Cannot move parent directory reference".to_string());
+            return Ok(());
+        }
+
+        // Directories not yet supported
+        if source_entry.is_dir {
+            self.status_message = Some("Directory move not yet implemented".to_string());
+            return Ok(());
+        }
+
+        // Get destination path
+        let dest_path = self.inactive_panel().current_path.join(&source_entry.name);
+
+        // Perform copy then delete (move = copy + delete source)
+        let copy_result = match self.active_panel {
+            ActivePanel::Left => {
+                transfer::copy_file(&self.left_panel, &self.right_panel, &source_entry.path, &dest_path)
+            }
+            ActivePanel::Right => {
+                transfer::copy_file(&self.right_panel, &self.left_panel, &source_entry.path, &dest_path)
+            }
+        };
+
+        match copy_result {
+            Ok(bytes) => {
+                // Delete source file
+                let delete_result = match self.active_panel {
+                    ActivePanel::Left => transfer::delete_file(&self.left_panel, &source_entry.path),
+                    ActivePanel::Right => transfer::delete_file(&self.right_panel, &source_entry.path),
+                };
+
+                match delete_result {
+                    Ok(()) => {
+                        self.status_message = Some(format!(
+                            "Moved {} ({} bytes)",
+                            source_entry.name,
+                            bytes
+                        ));
+                        // Refresh both panels
+                        self.left_panel.refresh()?;
+                        self.right_panel.refresh()?;
+                    }
+                    Err(e) => {
+                        self.status_message = Some(format!(
+                            "Copied but failed to delete source: {}",
+                            e
+                        ));
+                        // Still refresh destination
+                        match self.active_panel {
+                            ActivePanel::Left => self.right_panel.refresh()?,
+                            ActivePanel::Right => self.left_panel.refresh()?,
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                self.status_message = Some(format!("Move failed: {}", e));
+            }
+        }
+
         Ok(())
     }
 
     pub fn make_directory(&mut self) -> Result<()> {
-        self.status_message = Some("MkDir: Not yet implemented".to_string());
+        self.status_message = Some("MkDir: Not yet implemented (needs input dialog)".to_string());
         Ok(())
     }
 
     pub fn delete_file(&mut self) -> Result<()> {
-        self.status_message = Some("Delete: Not yet implemented".to_string());
+        // Get selected entry from active panel
+        let entry = match self.active_panel().selected_entry() {
+            Some(entry) => entry.clone(),
+            None => {
+                self.status_message = Some("No file selected".to_string());
+                return Ok(());
+            }
+        };
+
+        // Skip ".." entry
+        if entry.name == ".." {
+            self.status_message = Some("Cannot delete parent directory reference".to_string());
+            return Ok(());
+        }
+
+        // Delete based on type
+        let result = if entry.is_dir {
+            match self.active_panel {
+                ActivePanel::Left => transfer::delete_directory(&self.left_panel, &entry.path),
+                ActivePanel::Right => transfer::delete_directory(&self.right_panel, &entry.path),
+            }
+        } else {
+            match self.active_panel {
+                ActivePanel::Left => transfer::delete_file(&self.left_panel, &entry.path),
+                ActivePanel::Right => transfer::delete_file(&self.right_panel, &entry.path),
+            }
+        };
+
+        match result {
+            Ok(()) => {
+                self.status_message = Some(format!("Deleted {}", entry.name));
+                // Refresh active panel
+                self.active_panel_mut().refresh()?;
+            }
+            Err(e) => {
+                self.status_message = Some(format!("Delete failed: {}", e));
+            }
+        }
+
         Ok(())
     }
 

@@ -171,10 +171,12 @@ impl RemoteFileSystem {
         }
     }
 
-    pub fn from_sftp(sftp: Sftp) -> Self {
-        Self {
-            sftp: Arc::new(Mutex::new(sftp)),
-        }
+    pub fn from_sftp(sftp: Arc<Mutex<Sftp>>) -> Self {
+        Self { sftp }
+    }
+
+    pub fn sftp_handle(&self) -> Arc<Mutex<Sftp>> {
+        self.sftp.clone()
     }
 }
 

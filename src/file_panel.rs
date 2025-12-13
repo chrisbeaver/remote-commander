@@ -1,7 +1,15 @@
 use anyhow::Result;
+use ssh2::Sftp;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use crate::filesystem::{FileEntry, FileSystem};
+
+/// Trait to check if a filesystem is remote and get SFTP handle
+pub trait RemoteCapable {
+    fn is_remote(&self) -> bool;
+    fn get_sftp(&self) -> Option<Arc<Mutex<Sftp>>>;
+}
 
 /// Represents a file panel (left or right side)
 pub struct FilePanel {
@@ -11,6 +19,7 @@ pub struct FilePanel {
     pub scroll_offset: usize,
     pub visible_rows: usize,
     filesystem: Box<dyn FileSystem>,
+    sftp_handle: Option<Arc<Mutex<Sftp>>>,
 }
 
 impl FilePanel {
@@ -24,7 +33,34 @@ impl FilePanel {
             scroll_offset: 0,
             visible_rows: 20,
             filesystem: Box::new(filesystem),
+            sftp_handle: None,
         })
+    }
+
+    pub fn new_remote<F: FileSystem + 'static>(
+        filesystem: F,
+        path: PathBuf,
+        sftp: Arc<Mutex<Sftp>>,
+    ) -> Result<Self> {
+        let entries = filesystem.list_directory(&path)?;
+        
+        Ok(Self {
+            current_path: path,
+            entries,
+            selected_index: 0,
+            scroll_offset: 0,
+            visible_rows: 20,
+            filesystem: Box::new(filesystem),
+            sftp_handle: Some(sftp),
+        })
+    }
+
+    pub fn is_remote(&self) -> bool {
+        self.sftp_handle.is_some()
+    }
+
+    pub fn get_sftp(&self) -> Option<Arc<Mutex<Sftp>>> {
+        self.sftp_handle.clone()
     }
 
     pub fn refresh(&mut self) -> Result<()> {

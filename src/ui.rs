@@ -12,11 +12,12 @@ use crate::app::{ActivePanel, App};
 pub fn draw(frame: &mut Frame, app: &mut App) {
     let size = frame.area();
 
-    // Main layout: panels + function key bar
+    // Main layout: panels + status bar + function key bar
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Min(5),    // Panels area
+            Constraint::Length(1), // Status bar
             Constraint::Length(1), // Function key bar
         ])
         .split(size);
@@ -54,8 +55,11 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         app.active_panel == ActivePanel::Right,
     );
 
+    // Draw status bar
+    draw_status_bar(frame, main_chunks[1], app);
+
     // Draw function key bar
-    draw_function_bar(frame, main_chunks[1]);
+    draw_function_bar(frame, main_chunks[2]);
 
     // Draw help popup if active
     if app.show_help {
@@ -137,18 +141,33 @@ fn draw_panel(
     frame.render_widget(list, inner_area);
 }
 
+fn draw_status_bar(frame: &mut Frame, area: Rect, app: &App) {
+    let message = app
+        .status_message
+        .as_deref()
+        .unwrap_or("");
+
+    let paragraph = Paragraph::new(Line::from(Span::styled(
+        format!(" {}", message),
+        Style::default().fg(Color::Yellow).bg(Color::DarkGray),
+    )))
+    .style(Style::default().bg(Color::DarkGray));
+
+    frame.render_widget(paragraph, area);
+}
+
 fn draw_function_bar(frame: &mut Frame, area: Rect) {
     let function_keys = vec![
-        ("F1", "Help"),
+        ("F1/h", "Help"),
         ("F2", "Menu"),
-        ("F3", "View"),
-        ("F4", "Edit"),
-        ("F5", "Copy"),
-        ("F6", "Move"),
-        ("F7", "MkDir"),
-        ("F8", "Delete"),
+        ("F3/v", "View"),
+        ("F4/e", "Edit"),
+        ("F5/c", "Copy"),
+        ("F6/m", "Move"),
+        ("F7/n", "New"),
+        ("F8/d", "Del"),
         ("F9", "Term"),
-        ("F10", "Quit"),
+        ("F10/q", "Quit"),
     ];
 
     let spans: Vec<Span> = function_keys
@@ -194,9 +213,9 @@ fn draw_help_popup(frame: &mut Frame, area: Rect) {
         Line::from("  Tab       Switch panels"),
         Line::from(""),
         Line::from("Commands:"),
-        Line::from("  F1 Help  F5 Copy   F8 Delete"),
-        Line::from("  F3 View  F6 Move   F10/q Quit"),
-        Line::from("  F4 Edit  F7 MkDir"),
+        Line::from("  F1/h Help    F5/c Copy     F8/d Delete"),
+        Line::from("  F3/v View    F6/m Move     F10/q Quit"),
+        Line::from("  F4/e Edit    F7/n MkDir"),
     ];
 
     let help_paragraph = Paragraph::new(help_text)

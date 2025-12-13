@@ -2,6 +2,7 @@ mod app;
 mod file_panel;
 mod filesystem;
 mod ssh;
+mod transfer;
 mod ui;
 
 use anyhow::{Context, Result};
@@ -110,13 +111,13 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, app: &mut A
                     KeyCode::End => app.move_to_last(),
                     KeyCode::PageUp => app.page_up(),
                     KeyCode::PageDown => app.page_down(),
-                    KeyCode::F(1) => app.show_help(),
-                    KeyCode::F(3) => app.view_file()?,
-                    KeyCode::F(4) => app.edit_file()?,
-                    KeyCode::F(5) => app.copy_file()?,
-                    KeyCode::F(6) => app.move_file()?,
-                    KeyCode::F(7) => app.make_directory()?,
-                    KeyCode::F(8) => app.delete_file()?,
+                    KeyCode::F(1) | KeyCode::Char('h') => app.show_help(),
+                    KeyCode::F(3) | KeyCode::Char('v') => app.view_file()?,
+                    KeyCode::F(4) | KeyCode::Char('e') => app.edit_file()?,
+                    KeyCode::F(5) | KeyCode::Char('c') => app.copy_file()?,
+                    KeyCode::F(6) | KeyCode::Char('m') => app.move_file()?,
+                    KeyCode::F(7) | KeyCode::Char('n') => app.make_directory()?,
+                    KeyCode::F(8) | KeyCode::Char('d') => app.delete_file()?,
                     _ => {}
                 }
             }

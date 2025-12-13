@@ -10,9 +10,10 @@ A Norton Commander-style dual-pane file manager for the terminal, built in Rust.
 - **Dual-pane interface** — Classic Norton Commander layout with local filesystem on the left and remote (SSH) on the right
 - **Keyboard-driven navigation** — Arrow keys, Page Up/Down, Home/End for fast file browsing
 - **Function key commands** — F1-F10 shortcuts for common operations (view, edit, copy, move, delete)
+- **Alternative keybindings** — Letter shortcuts (c, m, d, etc.) for terminals that intercept function keys
 - **SSH remote browsing** — Connect to remote hosts via SFTP and browse files seamlessly
 - **Flexible authentication** — Supports SSH agent, key files (~/.ssh/id_ed25519, id_rsa, etc.), and password fallback
-- **Cross-panel operations** — Copy and move files between local and remote systems *(coming soon)*
+- **Cross-panel operations** — Copy and move files between local and remote systems with full SFTP support
 
 ## Installation
 
@@ -66,18 +67,20 @@ Remote Commander attempts authentication in the following order:
 
 ### Function Keys
 
-| Key | Action |
-|-----|--------|
-| `F1` | Help |
-| `F2` | Menu |
-| `F3` | View file |
-| `F4` | Edit file |
-| `F5` | Copy |
-| `F6` | Move/Rename |
-| `F7` | Make directory |
-| `F8` | Delete |
-| `F9` | Terminal |
-| `F10` / `q` | Quit |
+| Key | Alternative | Action |
+|-----|-------------|--------|
+| `F1` | `h` | Help |
+| `F2` | — | Menu |
+| `F3` | `v` | View file |
+| `F4` | `e` | Edit file |
+| `F5` | `c` | Copy file to opposite panel |
+| `F6` | `m` | Move file to opposite panel |
+| `F7` | `n` | Make directory |
+| `F8` | `d` | Delete file/directory |
+| `F9` | — | Terminal |
+| `F10` / `q` | — | Quit |
+
+**Note:** Alternative letter keys are provided for terminals (like Windows Terminal) that intercept function keys.
 
 ## Project Structure
 
@@ -115,17 +118,19 @@ cargo build --release
 ## Roadmap
 
 - [x] Dual-pane local filesystem navigation
-- [x] Function key bar
+- [x] Function key bar with alternative letter shortcuts
 - [x] Help popup
 - [x] SSH remote filesystem browsing (SFTP)
 - [x] SSH agent authentication
 - [x] SSH key file authentication
 - [x] Password authentication fallback
-- [ ] File copy/move operations
-- [ ] File viewing (F3)
-- [ ] File editing with external editor (F4)
-- [ ] Directory creation (F7)
-- [ ] File/directory deletion (F8)
+- [x] File copy operations (local ↔ local, local ↔ remote, remote ↔ remote)
+- [x] File move operations (copy + delete source)
+- [x] File/directory deletion (F8/d)
+- [ ] Directory copy/move operations (recursive)
+- [ ] File viewing (F3/v)
+- [ ] File editing with external editor (F4/e)
+- [ ] Directory creation (F7/n)
 - [ ] File search
 - [ ] Bookmarks
 
