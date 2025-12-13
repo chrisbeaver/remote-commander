@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::path::PathBuf;
 
 use crate::file_panel::FilePanel;
-use crate::filesystem::LocalFileSystem;
+use crate::filesystem::{FileEntry, LocalFileSystem};
 use crate::ssh::{RemoteFileSystem, SshConnection};
 use crate::transfer;
 
@@ -12,12 +12,20 @@ pub enum ActivePanel {
     Right,
 }
 
+#[derive(Debug, Clone)]
+pub enum ConfirmationAction {
+    Copy { source: FileEntry, dest_path: PathBuf },
+    Move { source: FileEntry, dest_path: PathBuf },
+    Delete { entry: FileEntry },
+}
+
 pub struct App {
     pub left_panel: FilePanel,
     pub right_panel: FilePanel,
     pub active_panel: ActivePanel,
     pub remote_connection: Option<String>,
     pub show_help: bool,
+    pub confirmation_dialog: Option<ConfirmationAction>,
     pub status_message: Option<String>,
     pub visible_rows: usize,
 }
@@ -44,6 +52,7 @@ impl App {
             active_panel: ActivePanel::Left,
             remote_connection,
             show_help: false,
+            confirmation_dialog: None,
             status_message: None,
             visible_rows: 20, // Will be updated by UI
         })
@@ -177,33 +186,11 @@ impl App {
         // Get destination path (inactive panel's current directory + filename)
         let dest_path = self.inactive_panel().current_path.join(&source_entry.name);
 
-        // Perform copy based on active panel
-        let result = match self.active_panel {
-            ActivePanel::Left => {
-                transfer::copy_file(&self.left_panel, &self.right_panel, &source_entry.path, &dest_path)
-            }
-            ActivePanel::Right => {
-                transfer::copy_file(&self.right_panel, &self.left_panel, &source_entry.path, &dest_path)
-            }
-        };
-
-        match result {
-            Ok(bytes) => {
-                self.status_message = Some(format!(
-                    "Copied {} ({} bytes)",
-                    source_entry.name,
-                    bytes
-                ));
-                // Refresh destination panel
-                match self.active_panel {
-                    ActivePanel::Left => self.right_panel.refresh()?,
-                    ActivePanel::Right => self.left_panel.refresh()?,
-                }
-            }
-            Err(e) => {
-                self.status_message = Some(format!("Copy failed: {}", e));
-            }
-        }
+        // Show confirmation dialog
+        self.confirmation_dialog = Some(ConfirmationAction::Copy {
+            source: source_entry,
+            dest_path,
+        });
 
         Ok(())
     }
@@ -233,52 +220,11 @@ impl App {
         // Get destination path
         let dest_path = self.inactive_panel().current_path.join(&source_entry.name);
 
-        // Perform copy then delete (move = copy + delete source)
-        let copy_result = match self.active_panel {
-            ActivePanel::Left => {
-                transfer::copy_file(&self.left_panel, &self.right_panel, &source_entry.path, &dest_path)
-            }
-            ActivePanel::Right => {
-                transfer::copy_file(&self.right_panel, &self.left_panel, &source_entry.path, &dest_path)
-            }
-        };
-
-        match copy_result {
-            Ok(bytes) => {
-                // Delete source file
-                let delete_result = match self.active_panel {
-                    ActivePanel::Left => transfer::delete_file(&self.left_panel, &source_entry.path),
-                    ActivePanel::Right => transfer::delete_file(&self.right_panel, &source_entry.path),
-                };
-
-                match delete_result {
-                    Ok(()) => {
-                        self.status_message = Some(format!(
-                            "Moved {} ({} bytes)",
-                            source_entry.name,
-                            bytes
-                        ));
-                        // Refresh both panels
-                        self.left_panel.refresh()?;
-                        self.right_panel.refresh()?;
-                    }
-                    Err(e) => {
-                        self.status_message = Some(format!(
-                            "Copied but failed to delete source: {}",
-                            e
-                        ));
-                        // Still refresh destination
-                        match self.active_panel {
-                            ActivePanel::Left => self.right_panel.refresh()?,
-                            ActivePanel::Right => self.left_panel.refresh()?,
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                self.status_message = Some(format!("Move failed: {}", e));
-            }
-        }
+        // Show confirmation dialog
+        self.confirmation_dialog = Some(ConfirmationAction::Move {
+            source: source_entry,
+            dest_path,
+        });
 
         Ok(())
     }
@@ -304,29 +250,8 @@ impl App {
             return Ok(());
         }
 
-        // Delete based on type
-        let result = if entry.is_dir {
-            match self.active_panel {
-                ActivePanel::Left => transfer::delete_directory(&self.left_panel, &entry.path),
-                ActivePanel::Right => transfer::delete_directory(&self.right_panel, &entry.path),
-            }
-        } else {
-            match self.active_panel {
-                ActivePanel::Left => transfer::delete_file(&self.left_panel, &entry.path),
-                ActivePanel::Right => transfer::delete_file(&self.right_panel, &entry.path),
-            }
-        };
-
-        match result {
-            Ok(()) => {
-                self.status_message = Some(format!("Deleted {}", entry.name));
-                // Refresh active panel
-                self.active_panel_mut().refresh()?;
-            }
-            Err(e) => {
-                self.status_message = Some(format!("Delete failed: {}", e));
-            }
-        }
+        // Show confirmation dialog
+        self.confirmation_dialog = Some(ConfirmationAction::Delete { entry });
 
         Ok(())
     }
@@ -335,6 +260,121 @@ impl App {
         self.visible_rows = rows;
         self.left_panel.visible_rows = rows;
         self.right_panel.visible_rows = rows;
+    }
+
+    pub fn confirm_action(&mut self) -> Result<()> {
+        if let Some(action) = self.confirmation_dialog.take() {
+            match action {
+                ConfirmationAction::Copy { source, dest_path } => {
+                    // Perform copy based on active panel
+                    let result = match self.active_panel {
+                        ActivePanel::Left => {
+                            transfer::copy_file(&self.left_panel, &self.right_panel, &source.path, &dest_path)
+                        }
+                        ActivePanel::Right => {
+                            transfer::copy_file(&self.right_panel, &self.left_panel, &source.path, &dest_path)
+                        }
+                    };
+
+                    match result {
+                        Ok(bytes) => {
+                            self.status_message = Some(format!(
+                                "Copied {} ({} bytes)",
+                                source.name,
+                                bytes
+                            ));
+                            // Refresh destination panel
+                            match self.active_panel {
+                                ActivePanel::Left => self.right_panel.refresh()?,
+                                ActivePanel::Right => self.left_panel.refresh()?,
+                            }
+                        }
+                        Err(e) => {
+                            self.status_message = Some(format!("Copy failed: {}", e));
+                        }
+                    }
+                }
+                ConfirmationAction::Move { source, dest_path } => {
+                    // Perform copy then delete (move = copy + delete source)
+                    let copy_result = match self.active_panel {
+                        ActivePanel::Left => {
+                            transfer::copy_file(&self.left_panel, &self.right_panel, &source.path, &dest_path)
+                        }
+                        ActivePanel::Right => {
+                            transfer::copy_file(&self.right_panel, &self.left_panel, &source.path, &dest_path)
+                        }
+                    };
+
+                    match copy_result {
+                        Ok(bytes) => {
+                            // Delete source file
+                            let delete_result = match self.active_panel {
+                                ActivePanel::Left => transfer::delete_file(&self.left_panel, &source.path),
+                                ActivePanel::Right => transfer::delete_file(&self.right_panel, &source.path),
+                            };
+
+                            match delete_result {
+                                Ok(()) => {
+                                    self.status_message = Some(format!(
+                                        "Moved {} ({} bytes)",
+                                        source.name,
+                                        bytes
+                                    ));
+                                    // Refresh both panels
+                                    self.left_panel.refresh()?;
+                                    self.right_panel.refresh()?;
+                                }
+                                Err(e) => {
+                                    self.status_message = Some(format!(
+                                        "Copied but failed to delete source: {}",
+                                        e
+                                    ));
+                                    // Still refresh destination
+                                    match self.active_panel {
+                                        ActivePanel::Left => self.right_panel.refresh()?,
+                                        ActivePanel::Right => self.left_panel.refresh()?,
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            self.status_message = Some(format!("Move failed: {}", e));
+                        }
+                    }
+                }
+                ConfirmationAction::Delete { entry } => {
+                    // Delete based on type
+                    let result = if entry.is_dir {
+                        match self.active_panel {
+                            ActivePanel::Left => transfer::delete_directory(&self.left_panel, &entry.path),
+                            ActivePanel::Right => transfer::delete_directory(&self.right_panel, &entry.path),
+                        }
+                    } else {
+                        match self.active_panel {
+                            ActivePanel::Left => transfer::delete_file(&self.left_panel, &entry.path),
+                            ActivePanel::Right => transfer::delete_file(&self.right_panel, &entry.path),
+                        }
+                    };
+
+                    match result {
+                        Ok(()) => {
+                            self.status_message = Some(format!("Deleted {}", entry.name));
+                            // Refresh active panel
+                            self.active_panel_mut().refresh()?;
+                        }
+                        Err(e) => {
+                            self.status_message = Some(format!("Delete failed: {}", e));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn cancel_confirmation(&mut self) {
+        self.confirmation_dialog = None;
+        self.status_message = Some("Cancelled".to_string());
     }
 }
 

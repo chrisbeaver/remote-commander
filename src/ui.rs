@@ -65,6 +65,11 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     if app.show_help {
         draw_help_popup(frame, size);
     }
+
+    // Draw confirmation dialog if active
+    if app.confirmation_dialog.is_some() {
+        draw_confirmation_popup(frame, size, app);
+    }
 }
 
 fn draw_panel(
@@ -230,6 +235,79 @@ fn draw_help_popup(frame: &mut Frame, area: Rect) {
     // Clear the area first
     frame.render_widget(ratatui::widgets::Clear, popup_area);
     frame.render_widget(help_paragraph, popup_area);
+}
+
+fn draw_confirmation_popup(frame: &mut Frame, area: Rect, app: &App) {
+    use crate::app::ConfirmationAction;
+
+    let (title, message) = match &app.confirmation_dialog {
+        Some(ConfirmationAction::Copy { source, dest_path }) => {
+            let msg = format!(
+                "Copy '{}' to {}?",
+                source.name,
+                dest_path.display()
+            );
+            ("Confirm Copy", msg)
+        }
+        Some(ConfirmationAction::Move { source, dest_path }) => {
+            let msg = format!(
+                "Move '{}' to {}?",
+                source.name,
+                dest_path.display()
+            );
+            ("Confirm Move", msg)
+        }
+        Some(ConfirmationAction::Delete { entry }) => {
+            let item_type = if entry.is_dir { "directory" } else { "file" };
+            let msg = format!(
+                "Delete {} '{}'?",
+                item_type,
+                entry.name
+            );
+            ("Confirm Delete", msg)
+        }
+        None => return,
+    };
+
+    let popup_width = 60;
+    let popup_height = 8;
+    
+    let popup_area = Rect {
+        x: (area.width.saturating_sub(popup_width)) / 2,
+        y: (area.height.saturating_sub(popup_height)) / 2,
+        width: popup_width.min(area.width),
+        height: popup_height.min(area.height),
+    };
+
+    let confirmation_text = vec![
+        Line::from(""),
+        Line::from(Span::styled(
+            message,
+            Style::default().fg(Color::White),
+        )),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("[Y]", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("es   "),
+            Span::styled("[N]", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+            Span::raw("o   "),
+            Span::styled("[ESC]", Style::default().fg(Color::Gray)),
+            Span::raw(" Cancel"),
+        ]),
+    ];
+
+    let confirmation_paragraph = Paragraph::new(confirmation_text)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(format!(" {} ", title))
+                .border_style(Style::default().fg(Color::Yellow)),
+        )
+        .style(Style::default().bg(Color::Black));
+
+    // Clear the area first
+    frame.render_widget(ratatui::widgets::Clear, popup_area);
+    frame.render_widget(confirmation_paragraph, popup_area);
 }
 
 #[cfg(test)]

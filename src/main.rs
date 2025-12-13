@@ -100,25 +100,39 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, app: &mut A
 
         if let Event::Key(key) = event::read()? {
             if key.kind == KeyEventKind::Press {
-                match key.code {
-                    KeyCode::Char('q') | KeyCode::F(10) => return Ok(()),
-                    KeyCode::Tab => app.toggle_active_panel(),
-                    KeyCode::Up => app.move_selection_up(),
-                    KeyCode::Down => app.move_selection_down(),
-                    KeyCode::Enter => app.enter_directory()?,
-                    KeyCode::Backspace => app.go_parent_directory()?,
-                    KeyCode::Home => app.move_to_first(),
-                    KeyCode::End => app.move_to_last(),
-                    KeyCode::PageUp => app.page_up(),
-                    KeyCode::PageDown => app.page_down(),
-                    KeyCode::F(1) | KeyCode::Char('h') => app.show_help(),
-                    KeyCode::F(3) | KeyCode::Char('v') => app.view_file()?,
-                    KeyCode::F(4) | KeyCode::Char('e') => app.edit_file()?,
-                    KeyCode::F(5) | KeyCode::Char('c') => app.copy_file()?,
-                    KeyCode::F(6) | KeyCode::Char('m') => app.move_file()?,
-                    KeyCode::F(7) | KeyCode::Char('n') => app.make_directory()?,
-                    KeyCode::F(8) | KeyCode::Char('d') => app.delete_file()?,
-                    _ => {}
+                // Handle confirmation dialog keys if active
+                if app.confirmation_dialog.is_some() {
+                    match key.code {
+                        KeyCode::Char('y') | KeyCode::Char('Y') => {
+                            app.confirm_action()?;
+                        }
+                        KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                            app.cancel_confirmation();
+                        }
+                        _ => {}
+                    }
+                } else {
+                    // Normal key handling
+                    match key.code {
+                        KeyCode::Char('q') | KeyCode::F(10) => return Ok(()),
+                        KeyCode::Tab => app.toggle_active_panel(),
+                        KeyCode::Up => app.move_selection_up(),
+                        KeyCode::Down => app.move_selection_down(),
+                        KeyCode::Enter => app.enter_directory()?,
+                        KeyCode::Backspace => app.go_parent_directory()?,
+                        KeyCode::Home => app.move_to_first(),
+                        KeyCode::End => app.move_to_last(),
+                        KeyCode::PageUp => app.page_up(),
+                        KeyCode::PageDown => app.page_down(),
+                        KeyCode::F(1) | KeyCode::Char('h') => app.show_help(),
+                        KeyCode::F(3) | KeyCode::Char('v') => app.view_file()?,
+                        KeyCode::F(4) | KeyCode::Char('e') => app.edit_file()?,
+                        KeyCode::F(5) | KeyCode::Char('c') => app.copy_file()?,
+                        KeyCode::F(6) | KeyCode::Char('m') => app.move_file()?,
+                        KeyCode::F(7) | KeyCode::Char('n') => app.make_directory()?,
+                        KeyCode::F(8) | KeyCode::Char('d') => app.delete_file()?,
+                        _ => {}
+                    }
                 }
             }
         }
