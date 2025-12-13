@@ -10,7 +10,8 @@ A Norton Commander-style dual-pane file manager for the terminal, built in Rust.
 - **Dual-pane interface** — Classic Norton Commander layout with local filesystem on the left and remote (SSH) on the right
 - **Keyboard-driven navigation** — Arrow keys, Page Up/Down, Home/End for fast file browsing
 - **Function key commands** — F1-F10 shortcuts for common operations (view, edit, copy, move, delete)
-- **SSH remote browsing** — Connect to remote hosts and browse files seamlessly *(coming soon)*
+- **SSH remote browsing** — Connect to remote hosts via SFTP and browse files seamlessly
+- **Flexible authentication** — Supports SSH agent, key files (~/.ssh/id_ed25519, id_rsa, etc.), and password fallback
 - **Cross-panel operations** — Copy and move files between local and remote systems *(coming soon)*
 
 ## Installation
@@ -33,7 +34,22 @@ remote-commander
 
 # Connect to a remote host (SSH)
 remote-commander user@hostname
+
+# Connect with a custom port
+remote-commander user@hostname:2222
 ```
+
+## SSH Authentication
+
+Remote Commander attempts authentication in the following order:
+
+1. **SSH Agent** — Uses keys loaded in your SSH agent (ssh-agent, gpg-agent, etc.)
+2. **SSH Key Files** — Tries common key files in `~/.ssh/`:
+   - `id_ed25519`
+   - `id_rsa`
+   - `id_ecdsa`
+   - `id_dsa`
+3. **Password** — Falls back to password prompt if keys are unavailable or fail
 
 ## Keyboard Shortcuts
 
@@ -71,6 +87,7 @@ src/
 ├── app.rs         # Application state and command handlers
 ├── file_panel.rs  # Panel logic (selection, scrolling, navigation)
 ├── filesystem.rs  # Filesystem abstraction (local/remote)
+├── ssh.rs         # SSH connection and remote filesystem (SFTP)
 └── ui.rs          # Terminal UI rendering with Ratatui
 ```
 
@@ -79,7 +96,8 @@ src/
 - [Ratatui](https://ratatui.rs/) — Terminal UI framework
 - [Crossterm](https://github.com/crossterm-rs/crossterm) — Cross-platform terminal manipulation
 - [Clap](https://clap.rs/) — Command-line argument parsing
-- [Russh](https://github.com/warp-tech/russh) — SSH client library *(for remote support)*
+- [ssh2](https://github.com/alexcrichton/ssh2-rs) — SSH/SFTP client library (libssh2 bindings)
+- [rpassword](https://github.com/conradkleinespel/rpassword) — Secure password input
 
 ## Development
 
@@ -99,7 +117,10 @@ cargo build --release
 - [x] Dual-pane local filesystem navigation
 - [x] Function key bar
 - [x] Help popup
-- [ ] SSH remote filesystem browsing
+- [x] SSH remote filesystem browsing (SFTP)
+- [x] SSH agent authentication
+- [x] SSH key file authentication
+- [x] Password authentication fallback
 - [ ] File copy/move operations
 - [ ] File viewing (F3)
 - [ ] File editing with external editor (F4)

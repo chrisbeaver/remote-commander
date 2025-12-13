@@ -2,7 +2,8 @@ use anyhow::Result;
 use std::path::PathBuf;
 
 use crate::file_panel::FilePanel;
-use crate::filesystem::{FileEntry, LocalFileSystem};
+use crate::filesystem::LocalFileSystem;
+use crate::ssh::{RemoteFileSystem, SshConnection};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActivePanel {
@@ -21,11 +22,19 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(remote_connection: Option<String>) -> Result<Self> {
+    pub fn new(remote_connection: Option<String>, ssh_connection: Option<SshConnection>) -> Result<Self> {
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
         
         let left_panel = FilePanel::new(LocalFileSystem::new(), home.clone())?;
-        let right_panel = FilePanel::new(LocalFileSystem::new(), home)?;
+        
+        // If SSH connection provided, use remote filesystem for right panel
+        let right_panel = if let Some(ref ssh_conn) = ssh_connection {
+            let remote_fs = RemoteFileSystem::new(ssh_conn);
+            let remote_home = ssh_conn.home_dir.clone();
+            FilePanel::new(remote_fs, remote_home)?
+        } else {
+            FilePanel::new(LocalFileSystem::new(), home)?
+        };
 
         Ok(Self {
             left_panel,
@@ -174,20 +183,20 @@ mod tests {
 
     #[test]
     fn test_app_new() {
-        let app = App::new(None).unwrap();
+        let app = App::new(None, None).unwrap();
         assert_eq!(app.active_panel, ActivePanel::Left);
         assert!(app.remote_connection.is_none());
     }
 
     #[test]
-    fn test_app_with_remote() {
-        let app = App::new(Some("user@host".to_string())).unwrap();
+    fn test_app_with_remote_string() {
+        let app = App::new(Some("user@host".to_string()), None).unwrap();
         assert_eq!(app.remote_connection, Some("user@host".to_string()));
     }
 
     #[test]
     fn test_toggle_panel() {
-        let mut app = App::new(None).unwrap();
+        let mut app = App::new(None, None).unwrap();
         assert_eq!(app.active_panel, ActivePanel::Left);
         app.toggle_active_panel();
         assert_eq!(app.active_panel, ActivePanel::Right);
@@ -197,7 +206,7 @@ mod tests {
 
     #[test]
     fn test_navigation() {
-        let mut app = App::new(None).unwrap();
+        let mut app = App::new(None, None).unwrap();
         let initial_index = app.active_panel().selected_index;
         
         app.move_selection_down();
@@ -211,7 +220,7 @@ mod tests {
 
     #[test]
     fn test_move_to_bounds() {
-        let mut app = App::new(None).unwrap();
+        let mut app = App::new(None, None).unwrap();
         
         app.move_to_first();
         assert_eq!(app.active_panel().selected_index, 0);
