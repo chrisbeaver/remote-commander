@@ -1,0 +1,32 @@
+[package]
+name = "remote-commander"
+version = "0.1.0"
+edition = "2021"
+description = "A Norton Commander-style dual-pane file manager with SSH support"
+authors = ["Chris"]
+
+[dependencies]
+# TUI framework
+ratatui = "0.28"
+crossterm = "0.28"
+
+# Async runtime for SSH
+tokio = { version = "1", features = ["full"] }
+
+# SSH client (for later)
+russh = "0.45"
+russh-keys = "0.45"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# CLI argument parsing
+clap = { version = "4", features = ["derive"] }
+
+# File system utilities
+dirs = "5"
+chrono = "0.4"
+
+[dev-dependencies]
+tempfile = "3"
