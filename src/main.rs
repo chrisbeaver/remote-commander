@@ -125,12 +125,12 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, app: &mut A
                         KeyCode::PageUp => app.page_up(),
                         KeyCode::PageDown => app.page_down(),
                         KeyCode::F(1) | KeyCode::Char('h') => app.show_help(),
-                        KeyCode::F(3) | KeyCode::Char('v') => app.view_file()?,
                         KeyCode::F(4) | KeyCode::Char('e') => app.edit_file()?,
                         KeyCode::F(5) | KeyCode::Char('c') => app.copy_file()?,
                         KeyCode::F(6) | KeyCode::Char('m') => app.move_file()?,
                         KeyCode::F(7) | KeyCode::Char('n') => app.make_directory()?,
                         KeyCode::F(8) | KeyCode::Char('d') => app.delete_file()?,
+                        KeyCode::F(9) | KeyCode::Char('t') => app.toggle_terminal(),
                         _ => {}
                     }
                 }

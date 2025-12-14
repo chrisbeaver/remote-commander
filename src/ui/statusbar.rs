@@ -27,13 +27,12 @@ pub fn draw_function_bar(frame: &mut Frame, area: Rect) {
     let function_keys = vec![
         ("F1/h", "Help"),
         ("F2", "Menu"),
-        ("F3/v", "View"),
         ("F4/e", "Edit"),
         ("F5/c", "Copy"),
         ("F6/m", "Move"),
         ("F7/n", "New"),
         ("F8/d", "Del"),
-        ("F9", "Term"),
+        ("F9/t", "Term"),
         ("F10/q", "Quit"),
     ];
 

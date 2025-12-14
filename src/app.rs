@@ -25,6 +25,7 @@ pub struct App {
     pub active_panel: ActivePanel,
     pub remote_connection: Option<String>,
     pub show_help: bool,
+    pub show_terminal: bool,
     pub confirmation_dialog: Option<ConfirmationAction>,
     pub status_message: Option<String>,
     pub visible_rows: usize,
@@ -52,6 +53,7 @@ impl App {
             active_panel: ActivePanel::Left,
             remote_connection,
             show_help: false,
+            show_terminal: false,
             confirmation_dialog: None,
             status_message: None,
             visible_rows: 20, // Will be updated by UI
@@ -149,6 +151,14 @@ impl App {
 
     pub fn show_help(&mut self) {
         self.show_help = !self.show_help;
+    }
+
+    pub fn toggle_terminal(&mut self) {
+        self.show_terminal = !self.show_terminal;
+        self.status_message = Some(format!(
+            "Terminal: {}",
+            if self.show_terminal { "ON" } else { "OFF" }
+        ));
     }
 
     pub fn view_file(&mut self) -> Result<()> {

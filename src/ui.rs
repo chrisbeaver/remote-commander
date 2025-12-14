@@ -1,6 +1,7 @@
 mod panels;
 mod popups;
 mod statusbar;
+mod terminal;
 
 use ratatui::{
     layout::{Constraint, Direction, Layout},
@@ -13,20 +14,33 @@ use crate::app::{ActivePanel, App};
 pub use panels::draw_panel;
 pub use popups::{draw_confirmation_popup, draw_help_popup};
 pub use statusbar::{draw_function_bar, draw_status_bar};
+pub use terminal::draw_terminal;
 
 /// Main draw function for the application
 pub fn draw(frame: &mut Frame, app: &mut App) {
     let size = frame.area();
 
-    // Main layout: panels + status bar + function key bar
-    let main_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(5),    // Panels area
-            Constraint::Length(1), // Status bar
-            Constraint::Length(1), // Function key bar
-        ])
-        .split(size);
+    // Main layout: panels + optional terminal + status bar + function key bar
+    let main_chunks = if app.show_terminal {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Percentage(50), // Panels area
+                Constraint::Percentage(50), // Terminal area
+                Constraint::Length(1),      // Status bar
+                Constraint::Length(1),      // Function key bar
+            ])
+            .split(size)
+    } else {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(5),    // Panels area
+                Constraint::Length(1), // Status bar
+                Constraint::Length(1), // Function key bar
+            ])
+            .split(size)
+    };
 
     // Split panels horizontally
     let panel_chunks = Layout::default()
@@ -61,11 +75,18 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         app.active_panel == ActivePanel::Right,
     );
 
+    // Draw terminal if visible
+    if app.show_terminal {
+        terminal::draw_terminal(frame, main_chunks[1], app);
+    }
+
     // Draw status bar
-    statusbar::draw_status_bar(frame, main_chunks[1], app);
+    let status_bar_idx = if app.show_terminal { 2 } else { 1 };
+    statusbar::draw_status_bar(frame, main_chunks[status_bar_idx], app);
 
     // Draw function key bar
-    statusbar::draw_function_bar(frame, main_chunks[2]);
+    let function_bar_idx = if app.show_terminal { 3 } else { 2 };
+    statusbar::draw_function_bar(frame, main_chunks[function_bar_idx]);
 
     // Draw help popup if active
     if app.show_help {
