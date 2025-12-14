@@ -5,6 +5,8 @@ A Norton Commander-style dual-pane file manager for the terminal, built in Rust.
 ![Rust](https://img.shields.io/badge/rust-1.70%2B-orange)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
+![Remote Commander Screenshot](screenshot.png)
+
 ## Features
 
 - **Dual-pane interface** — Classic Norton Commander layout with local filesystem on the left and remote (SSH) on the right
