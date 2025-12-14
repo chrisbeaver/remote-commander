@@ -193,12 +193,12 @@ impl App {
     pub fn enter_terminal_input_mode(&mut self) {
         self.terminal_input_mode = true;
         // Don't send clear command - just enter input mode
-        self.status_message = Some("Terminal input mode (Tab/Esc to exit)".to_string());
+        self.status_message = Some("Terminal input mode (Esc to exit)".to_string());
     }
 
     pub fn exit_terminal_input_mode(&mut self) {
         self.terminal_input_mode = false;
-        self.status_message = Some("Navigation mode (Tab=switch panel, Enter=terminal input)".to_string());
+        self.status_message = Some("Navigation mode (Esc to enter terminal)".to_string());
     }
 
     pub fn send_to_shell(&mut self, data: &[u8]) -> Result<()> {

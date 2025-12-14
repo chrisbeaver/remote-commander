@@ -115,10 +115,10 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, app: &mut A
                         _ => {}
                     }
                 } else if app.show_terminal && app.terminal_input_mode {
-                    // Terminal input mode - send ALL keys to shell except Tab/Esc
+                    // Terminal input mode - send ALL keys to shell except Esc
                     match key.code {
-                        KeyCode::Tab | KeyCode::Esc => {
-                            // Exit terminal input mode, return to navigation
+                        KeyCode::Esc => {
+                            // Toggle terminal input mode off, return to navigation
                             app.exit_terminal_input_mode();
                         }
                         KeyCode::Char(c) => {
@@ -142,6 +142,9 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, app: &mut A
                         KeyCode::Right => {
                             let _ = app.send_to_shell(b"\x1b[C"); // Right arrow
                         }
+                        KeyCode::Tab => {
+                            let _ = app.send_to_shell(b"\t");
+                        }
                         _ => {}
                     }
                 } else {
@@ -155,7 +158,7 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, app: &mut A
                                 if app.active_panel == app::ActivePanel::Left { "Left" } else { "Right" }
                             ));
                         }
-                        KeyCode::Enter if app.show_terminal => {
+                        KeyCode::Esc if app.show_terminal => {
                             app.enter_terminal_input_mode();
                         }
                         KeyCode::Up => app.move_selection_up(),
