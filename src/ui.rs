@@ -42,6 +42,11 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             .split(size)
     };
 
+    // Draw terminal FIRST if visible to ensure proper clearing
+    if app.show_terminal {
+        terminal::draw_terminal(frame, main_chunks[1], app);
+    }
+
     // Split panels horizontally
     let panel_chunks = Layout::default()
         .direction(Direction::Horizontal)
@@ -74,11 +79,6 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         &right_title,
         app.active_panel == ActivePanel::Right,
     );
-
-    // Draw terminal if visible
-    if app.show_terminal {
-        terminal::draw_terminal(frame, main_chunks[1], app);
-    }
 
     // Draw status bar
     let status_bar_idx = if app.show_terminal { 2 } else { 1 };

@@ -27,5 +27,8 @@ chrono = "0.4"
 # Password input
 rpassword = "7"
 
+# Terminal/PTY support
+portable-pty = "0.8"
+
 [dev-dependencies]
 tempfile = "3"

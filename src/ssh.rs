@@ -44,7 +44,7 @@ impl SshConnectionInfo {
 
 /// SSH connection manager
 pub struct SshConnection {
-    session: Session,
+    pub session: Session,
     sftp: Sftp,
     pub info: SshConnectionInfo,
     pub home_dir: PathBuf,

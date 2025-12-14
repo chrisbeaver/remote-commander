@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use crate::file_panel::FilePanel;
 use crate::filesystem::{FileEntry, LocalFileSystem};
+use crate::shell::{LocalShell, RemoteShell, ShellType};
 use crate::ssh::{RemoteFileSystem, SshConnection};
 use crate::transfer;
 
@@ -26,9 +27,12 @@ pub struct App {
     pub remote_connection: Option<String>,
     pub show_help: bool,
     pub show_terminal: bool,
+    pub terminal_input_mode: bool,
     pub confirmation_dialog: Option<ConfirmationAction>,
     pub status_message: Option<String>,
     pub visible_rows: usize,
+    pub left_shell: Option<ShellType>,
+    pub right_shell: Option<ShellType>,
 }
 
 impl App {
@@ -37,14 +41,24 @@ impl App {
         
         let left_panel = FilePanel::new(LocalFileSystem::new(), home.clone())?;
         
+        // Initialize local shell for left panel
+        let left_shell = LocalShell::new().ok().map(ShellType::Local);
+        
         // If SSH connection provided, use remote filesystem for right panel
-        let right_panel = if let Some(ref ssh_conn) = ssh_connection {
+        let (right_panel, right_shell) = if let Some(ref ssh_conn) = ssh_connection {
             let remote_fs = RemoteFileSystem::new(ssh_conn);
             let sftp_handle = remote_fs.sftp_handle();
             let remote_home = ssh_conn.home_dir.clone();
-            FilePanel::new_remote(remote_fs, remote_home, sftp_handle)?
+            let panel = FilePanel::new_remote(remote_fs, remote_home, sftp_handle)?;
+            
+            // Create remote shell using the SSH session
+            let remote_shell = RemoteShell::new(&ssh_conn.session).ok().map(ShellType::Remote);
+            
+            (panel, remote_shell)
         } else {
-            FilePanel::new(LocalFileSystem::new(), home)?
+            let panel = FilePanel::new(LocalFileSystem::new(), home)?;
+            let local_shell = LocalShell::new().ok().map(ShellType::Local);
+            (panel, local_shell)
         };
 
         Ok(Self {
@@ -54,9 +68,12 @@ impl App {
             remote_connection,
             show_help: false,
             show_terminal: false,
+            terminal_input_mode: false,
             confirmation_dialog: None,
             status_message: None,
             visible_rows: 20, // Will be updated by UI
+            left_shell,
+            right_shell,
         })
     }
 
@@ -155,10 +172,45 @@ impl App {
 
     pub fn toggle_terminal(&mut self) {
         self.show_terminal = !self.show_terminal;
+        // Don't clear output - let the user see the shell prompt
         self.status_message = Some(format!(
             "Terminal: {}",
             if self.show_terminal { "ON" } else { "OFF" }
         ));
+    }
+
+    pub fn clear_terminal_output(&mut self) {
+        let shell = match self.active_panel {
+            ActivePanel::Left => &mut self.left_shell,
+            ActivePanel::Right => &mut self.right_shell,
+        };
+        
+        if let Some(shell) = shell {
+            shell.clear_output();
+        }
+    }
+
+    pub fn enter_terminal_input_mode(&mut self) {
+        self.terminal_input_mode = true;
+        // Don't send clear command - just enter input mode
+        self.status_message = Some("Terminal input mode (Tab/Esc to exit)".to_string());
+    }
+
+    pub fn exit_terminal_input_mode(&mut self) {
+        self.terminal_input_mode = false;
+        self.status_message = Some("Navigation mode (Tab=switch panel, Enter=terminal input)".to_string());
+    }
+
+    pub fn send_to_shell(&mut self, data: &[u8]) -> Result<()> {
+        let shell = match self.active_panel {
+            ActivePanel::Left => &mut self.left_shell,
+            ActivePanel::Right => &mut self.right_shell,
+        };
+        
+        if let Some(shell) = shell {
+            shell.write_input(data)?;
+        }
+        Ok(())
     }
 
     pub fn view_file(&mut self) -> Result<()> {

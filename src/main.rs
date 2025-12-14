@@ -1,6 +1,7 @@
 mod app;
 mod file_panel;
 mod filesystem;
+mod shell;
 mod ssh;
 mod transfer;
 mod ui;
@@ -98,10 +99,12 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, app: &mut A
     loop {
         terminal.draw(|f| ui::draw(f, app))?;
 
-        if let Event::Key(key) = event::read()? {
-            if key.kind == KeyEventKind::Press {
-                // Handle confirmation dialog keys if active
-                if app.confirmation_dialog.is_some() {
+        // Use polling with timeout to reduce CPU usage and improve responsiveness
+        if event::poll(std::time::Duration::from_millis(50))? {
+            if let Event::Key(key) = event::read()? {
+                if key.kind == KeyEventKind::Press {
+                    // Handle confirmation dialog keys if active
+                    if app.confirmation_dialog.is_some() {
                     match key.code {
                         KeyCode::Char('y') | KeyCode::Char('Y') => {
                             app.confirm_action()?;
@@ -111,11 +114,50 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, app: &mut A
                         }
                         _ => {}
                     }
+                } else if app.show_terminal && app.terminal_input_mode {
+                    // Terminal input mode - send ALL keys to shell except Tab/Esc
+                    match key.code {
+                        KeyCode::Tab | KeyCode::Esc => {
+                            // Exit terminal input mode, return to navigation
+                            app.exit_terminal_input_mode();
+                        }
+                        KeyCode::Char(c) => {
+                            let _ = app.send_to_shell(c.to_string().as_bytes());
+                        }
+                        KeyCode::Enter => {
+                            let _ = app.send_to_shell(b"\n");
+                        }
+                        KeyCode::Backspace => {
+                            let _ = app.send_to_shell(b"\x7f");
+                        }
+                        KeyCode::Up => {
+                            let _ = app.send_to_shell(b"\x1b[A"); // Up arrow
+                        }
+                        KeyCode::Down => {
+                            let _ = app.send_to_shell(b"\x1b[B"); // Down arrow
+                        }
+                        KeyCode::Left => {
+                            let _ = app.send_to_shell(b"\x1b[D"); // Left arrow
+                        }
+                        KeyCode::Right => {
+                            let _ = app.send_to_shell(b"\x1b[C"); // Right arrow
+                        }
+                        _ => {}
+                    }
                 } else {
-                    // Normal key handling
+                    // Navigation mode - normal key handling
                     match key.code {
                         KeyCode::Char('q') | KeyCode::F(10) => return Ok(()),
-                        KeyCode::Tab => app.toggle_active_panel(),
+                        KeyCode::Tab => {
+                            app.toggle_active_panel();
+                            app.status_message = Some(format!(
+                                "Active: {} panel",
+                                if app.active_panel == app::ActivePanel::Left { "Left" } else { "Right" }
+                            ));
+                        }
+                        KeyCode::Enter if app.show_terminal => {
+                            app.enter_terminal_input_mode();
+                        }
                         KeyCode::Up => app.move_selection_up(),
                         KeyCode::Down => app.move_selection_down(),
                         KeyCode::Enter => app.enter_directory()?,
@@ -133,6 +175,7 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, app: &mut A
                         KeyCode::F(9) | KeyCode::Char('t') => app.toggle_terminal(),
                         _ => {}
                     }
+                }
                 }
             }
         }
